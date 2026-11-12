@@ -753,9 +753,9 @@ func TestRemotePWAAssetsAndServiceWorkerPrivacyPolicy(t *testing.T) {
 	policy := string(worker)
 	for _, required := range []string{
 		`url.pathname.startsWith("/api/")`, `response.ok`, `response.type === "basic"`,
-		`maccellular-remote-v63`, `app.js?v=20260817-remote39`, `session-presentation.js?v=20260815-remote1`,
+		`maccellular-remote-v64`, `app.js?v=20261112-remote40`, `session-presentation.js?v=20261112-remote2`,
 		`incoming-call-push.js?v=20260815-remote1`, `sms-state.js?v=20260814-remote1`, `public-voice-ui.js?v=20260816-remote9`,
-		`media-client.js?v=20260817-remote27`, `call-recorder.js?v=20260817-remote2`, `external-voice-client.js?v=20260815-remote2`, `style.css?v=20260817-remote8`,
+		`media-client.js?v=20260817-remote27`, `call-recorder.js?v=20260817-remote2`, `external-voice-client.js?v=20260815-remote2`, `style.css?v=20261112-remote9`,
 	} {
 		if !strings.Contains(policy, required) {
 			t.Errorf("service worker is missing privacy condition %q", required)
@@ -766,9 +766,9 @@ func TestRemotePWAAssetsAndServiceWorkerPrivacyPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, required := range []string{
-		`app.js?v=20260817-remote39`, `session-presentation.js?v=20260815-remote1`,
+		`app.js?v=20261112-remote40`, `session-presentation.js?v=20261112-remote2`,
 		`incoming-call-push.js?v=20260815-remote1`, `sms-state.js?v=20260814-remote1`, `public-voice-ui.js?v=20260816-remote9`,
-		`media-client.js?v=20260817-remote27`, `call-recorder.js?v=20260817-remote2`, `external-voice-client.js?v=20260815-remote2`, `style.css?v=20260817-remote8`,
+		`media-client.js?v=20260817-remote27`, `call-recorder.js?v=20260817-remote2`, `external-voice-client.js?v=20260815-remote2`, `style.css?v=20261112-remote9`,
 		`手机与家中 Mac 双副本`, `通话接通后自动录音`,
 		`id="dial-number" type="text" inputmode="none"`, `readonly required`,
 	} {

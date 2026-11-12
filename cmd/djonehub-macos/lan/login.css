@@ -1,0 +1,44 @@
+:root {
+  color-scheme: dark;
+  --bg: #06101e;
+  --surface: #0d1a2b;
+  --surface-2: #13233a;
+  --line: rgba(220, 236, 255, .11);
+  --text: #f7f9fd;
+  --muted: #91a2b8;
+  --brand: #ff765e;
+  --mint: #8ee7d3;
+  --red: #ff6677;
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+}
+* { box-sizing: border-box; }
+html { min-height: 100%; background: var(--bg); }
+body {
+  margin: 0; min-height: 100vh; display: grid; place-items: center;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+  background: radial-gradient(circle at 84% -8%, rgba(33, 67, 105, .65), transparent 35%), radial-gradient(circle at -10% 60%, rgba(255, 118, 94, .08), transparent 34%), var(--bg);
+  color: var(--text); -webkit-text-size-adjust: 100%;
+}
+.login-card {
+  width: min(420px, 100%); padding: 26px 22px 22px; border: 1px solid var(--line); border-radius: 22px;
+  background: linear-gradient(150deg, rgba(18, 34, 55, .96), rgba(10, 23, 39, .96)); box-shadow: 0 16px 42px rgba(0,0,0,.22);
+}
+.brand-mark { width: 56px; height: 56px; border-radius: 16px; box-shadow: 0 8px 25px rgba(0,0,0,.3); }
+.eyebrow { display: block; margin-top: 16px; color: var(--mint); font-size: 11px; font-weight: 720; letter-spacing: .08em; }
+h1 { margin: 4px 0 0; font-size: 26px; letter-spacing: -.035em; }
+.lead { margin: 10px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+form { display: grid; gap: 10px; margin-top: 22px; }
+label { color: var(--muted); font-size: 13px; }
+input {
+  width: 100%; min-height: 50px; padding: 0 14px; border: 1px solid var(--line); border-radius: 14px; outline: none;
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: 17px;
+}
+input:focus { border-color: rgba(142, 231, 211, .6); box-shadow: 0 0 0 3px rgba(142, 231, 211, .12); }
+button {
+  min-height: 50px; border: 0; border-radius: 14px; background: var(--brand); color: #fff; font: inherit; font-size: 16px; font-weight: 700;
+  cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent;
+}
+button:disabled { cursor: not-allowed; opacity: .5; }
+.message { min-height: 1.3em; margin: 0; color: var(--red); font-size: 13px; }
+.message.ok { color: var(--mint); }
+.hint { margin: 18px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }

@@ -1,5 +1,12 @@
 # 更新记录
 
+## 未发布
+
+- 新增局域网网页模式（`-lan-web-*`）：同一 Wi-Fi 内用访问密码登录手机端 PWA 收发短信，不需要域名、Cloudflare 或 Tailscale；附带 `deploy/lan-web-mac/install-lan.sh` 安装器与自签名 HTTPS 选项。
+- 手机端静态资源改为带 ETag 与长期缓存的版本化响应，减少蜂窝网络下每次启动的重复下载；Service Worker 不再缓存被重定向的文档。
+- 纯 HTTP 来源下短信发送不再依赖 SubtleCrypto。
+- HTTP 监听器增加空闲超时；修复公开仓库缺少 eUICC 根证书与 IMEI 探测源码导致无法构建的问题。
+
 ## 1.0.0-rc.4 · 公开预发布候选
 
 - 在 README、首次安装和发行说明中显著列出用户必须自备的模块、SIM、域名、

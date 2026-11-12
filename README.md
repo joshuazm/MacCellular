@@ -48,6 +48,7 @@ MacCellular 面向希望继续使用实体 SIM、但不想随身携带第二台�
 | 最近通话 | 呼入、呼出、未接记录，可直接回拨 |
 | 通话录音 | 手机端播放，同时同步一份到 Mac |
 | 远程访问 | Cloudflare Access + Tunnel；Tailscale 仅作管理后备 |
+| 局域网访问 | 同一 Wi-Fi 内用访问密码直接打开网页版，不需要域名或 Cloudflare，见 [局域网网页访问](docs/LAN_WEB.md) |
 | 线路范围 | 1.0 只支持单模块、单实体 SIM 的个人自托管场景 |
 | 原生 iOS/Android App | 不属于 1.0；当前产品是可安装 PWA |
 
@@ -108,6 +109,7 @@ flowchart LR
 | 目标 | 用户需要自行准备 |
 | --- | --- |
 | 只在 Mac 看演示界面 | Apple Silicon Mac；不需要模块或公网服务，但不能收发真实通信 |
+| 在家里的手机上使用短信 | 上述 Mac + 兼容模块 + 实体 SIM；不需要域名和 Cloudflare，运行 `./deploy/lan-web-mac/install-lan.sh apply` 即可，见 [局域网网页访问](docs/LAN_WEB.md) |
 | 使用真实短信 | 兼容 USB 蜂窝模块、本人合法控制且可正常注册的实体 SIM、常驻 Mac |
 | 从手机远程使用短信 | 上述条件，以及自己的域名、Cloudflare 账户、Access 应用、Named Tunnel 和允许登录的邮箱 |
 | 从手机接打电话 | 上述全部条件，以及已验证的 QDC507 语音环境、模块侧运行文件、独立 coturn 服务、可公网访问的 TURN 域名和相应端口 |
@@ -195,6 +197,7 @@ cd maccellular
 | `macos/DJOneHubNotifier` | macOS 音频、通知和模块 UAC helper |
 | `internal/remotevoice` | WebRTC/PCMU 媒体会话 |
 | `deploy/public-web-mac` | 家庭 Mac 安装、升级、回滚和迁移 |
+| `deploy/lan-web-mac` | 局域网网页模式安装器与 LaunchAgent 模板 |
 | `deploy/public-turn` | coturn 配置与验收工具 |
 | `internal/sipgateway`, `internal/sipwebrtc` | 可选的外置 SIP 兼容路径 |
 | `docs` | 架构、硬件验证、历史决策与发行说明 |

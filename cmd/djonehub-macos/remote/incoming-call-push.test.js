@@ -426,9 +426,9 @@ test("cache and page include the same versioned push client", () => {
   const asset = "incoming-call-push.js?v=20260815-remote1";
   assert.match(index, new RegExp(asset.replace(/[.?]/g, "\\$&")));
   assert.match(worker, new RegExp(asset.replace(/[.?]/g, "\\$&")));
-  assert.match(worker, /maccellular-remote-v63/);
-  assert.match(index, /app\.js\?v=20260817-remote39/);
-  assert.match(worker, /app\.js\?v=20260817-remote39/);
+  assert.match(worker, /maccellular-remote-v64/);
+  assert.match(index, /app\.js\?v=20261112-remote40/);
+  assert.match(worker, /app\.js\?v=20261112-remote40/);
   assert.doesNotMatch(app, /serviceWorker\.addEventListener\("controllerchange"/);
   assert.match(app, /window\.addEventListener\("pageshow"/);
   assert.match(app, /refreshAbortController\?\.abort\(\)/);

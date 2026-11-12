@@ -474,6 +474,12 @@ async function api(path, options = {}) {
       signal: controller?.signal || callerSignal,
     });
     const body = await response.json().catch(() => ({}));
+    if (response.status === 401 && body.code === "login_required" && typeof body.login_url === "string" &&
+        body.login_url.startsWith("/") && !body.login_url.startsWith("//")) {
+      // LAN sessions expire or get revoked: return to the password page instead
+      // of surfacing a stream of 401 toasts.
+      location.replace(`${body.login_url}?next=${encodeURIComponent(location.pathname)}`);
+    }
     if (!response.ok) {
       const error = new Error(body.error || `HTTP ${response.status}`);
       error.httpStatus = response.status;
@@ -510,8 +516,19 @@ const incomingCallPush = new globalThis.MacCellularIncomingCallPush.IncomingCall
 
 async function mutationFingerprint(path, body) {
   const bytes = new TextEncoder().encode(`${path}\0${JSON.stringify(body || {})}`);
-  const hash = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(hash)].map((value) => value.toString(16).padStart(2, "0")).join("");
+  if (globalThis.crypto?.subtle?.digest) {
+    const hash = await crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(hash)].map((value) => value.toString(16).padStart(2, "0")).join("");
+  }
+  // Plain-HTTP LAN origins are not secure contexts and have no SubtleCrypto.
+  // The fingerprint only de-duplicates retries of the same local mutation, so a
+  // 64-bit FNV-1a over the same bytes is sufficient there.
+  let high = 0x811c9dc5, low = 0x9dc5811c;
+  for (const byte of bytes) {
+    high = Math.imul(high ^ byte, 0x01000193) >>> 0;
+    low = Math.imul(low ^ byte ^ (high & 0xff), 0x01000193) >>> 0;
+  }
+  return `fnv-${high.toString(16).padStart(8, "0")}${low.toString(16).padStart(8, "0")}`;
 }
 
 function readPendingMutations() {
@@ -698,6 +715,7 @@ function renderGateway() {
   $("#line-voice").textContent = smsOnlySession() ? "未启用" : (gateway.voice_ready || externalVoiceStatus?.health === "connected" ? "已就绪" : "准备中");
   $("#line-sms").textContent = remoteSMSSyncActive() || hasAction("sms.read") ? "已连接" : "未启用";
   $("#identity").textContent = session?.identity || "--";
+  $("#lan-logout").hidden = session?.transport !== "lan";
   const externalDialEnabled = externalVoiceMode() && externalVoiceStatus?.health === "connected" &&
     externalVoiceStatus?.dial_enabled === true &&
     (!externalVoiceStatus?.call || externalVoiceStatus.call.phase === "ended") &&
@@ -2032,6 +2050,15 @@ $("#sms-refresh").addEventListener("click", async () => {
   }
 });
 
+$("#lan-logout").addEventListener("click", async () => {
+  try {
+    await api("../api/remote/v1/lan/logout", { method: "POST", ephemeral: true, body: JSON.stringify({}) });
+  } catch {
+    // The cookie is cleared server-side on a best-effort basis; always leave the page.
+  }
+  clearSensitiveView();
+  location.replace("/lan/login");
+});
 $("#notify").addEventListener("click", async () => {
   if (!("Notification" in window)) return toast("当前浏览器不支持通知");
   const permission = await Notification.requestPermission();

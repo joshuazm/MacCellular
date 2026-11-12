@@ -8,6 +8,7 @@
   function transportLabel(session) {
     const transport = typeof session?.transport === "string" ? session.transport.trim() : "";
     if (transport.toLowerCase() === "cloudflare-access") return "公网";
+    if (transport.toLowerCase() === "lan") return "局域网";
     return transport || "Tailscale";
   }
 
