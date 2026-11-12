@@ -1,5 +1,5 @@
-const CACHE = "maccellular-remote-v63";
-const STATIC = ["./", "app.js?v=20260817-remote39", "session-presentation.js?v=20260815-remote1", "public-voice-ui.js?v=20260816-remote9", "incoming-call-push.js?v=20260815-remote1", "sms-state.js?v=20260814-remote1", "media-client.js?v=20260817-remote27", "call-recorder.js?v=20260817-remote2", "external-voice-client.js?v=20260815-remote2", "style.css?v=20260817-remote8", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
+const CACHE = "maccellular-remote-v64";
+const STATIC = ["./", "app.js?v=20261112-remote40", "session-presentation.js?v=20261112-remote2", "public-voice-ui.js?v=20260816-remote9", "incoming-call-push.js?v=20260815-remote1", "sms-state.js?v=20260814-remote1", "media-client.js?v=20260817-remote27", "call-recorder.js?v=20260817-remote2", "external-voice-client.js?v=20260815-remote2", "style.css?v=20261112-remote9", "manifest.webmanifest", "icon.svg", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 self.addEventListener("install", (event) => event.waitUntil(
   caches.open(CACHE).then((cache) => cache.addAll(STATIC)).then(() => self.skipWaiting())
 ));
@@ -14,7 +14,9 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/") || !url.pathname.startsWith("/remote/")) return;
   if (event.request.method !== "GET") return;
   event.respondWith(fetch(event.request).then((response) => {
-    if (response.ok && response.type === "basic") {
+    // Never cache a login redirect (or any other redirected document) under the
+    // app shell's URL; offline fallback must only replay real app assets.
+    if (response.ok && response.type === "basic" && !response.redirected) {
       const copy = response.clone();
       caches.open(CACHE).then((cache) => cache.put(event.request, copy));
     }

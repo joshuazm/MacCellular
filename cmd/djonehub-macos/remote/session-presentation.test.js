@@ -11,6 +11,12 @@ test("Cloudflare Access SMS sessions select the public SMS presentation", () => 
   assert.equal(transportLabel(session), "公网");
 });
 
+test("LAN sessions are labelled as the home network", () => {
+  const session = { sms_only: true, transport: "lan" };
+  assert.equal(smsOnly(session), true);
+  assert.equal(transportLabel(session), "局域网");
+});
+
 test("sms_only is fail-closed to the exact boolean", () => {
   assert.equal(smsOnly({ sms_only: "true" }), false);
   assert.equal(smsOnly({ sms_only: 1 }), false);

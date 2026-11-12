@@ -314,6 +314,16 @@ type remoteBrowserSecurityPolicy struct {
 	PathAllowed         func(string) bool
 	Authorize           func(*http.Request) (remoteAuthorization, error)
 	AuthorizationStatus func(error) int
+	// HostAllowed replaces the exact Host match for a listener that answers on
+	// several home-network addresses. The request's own canonical host then
+	// becomes the expected same-origin host for mutations.
+	HostAllowed func(string) bool
+	// PlainHTTPOrigin accepts http:// origins for mutations when the listener
+	// itself is served without TLS (LAN mode).
+	PlainHTTPOrigin bool
+	// Unauthorized may render its own response (for example a login redirect)
+	// and reports whether it did.
+	Unauthorized func(http.ResponseWriter, *http.Request, error) bool
 }
 
 var errRemoteBrowserUnauthorized = errors.New("remote browser request is unauthorized")
@@ -350,7 +360,7 @@ func (a *app) remoteBrowserRoutes(smsOnly bool) http.Handler {
 	if err != nil {
 		panic(fmt.Sprintf("open embedded remote client: %v", err))
 	}
-	browserMux.Handle("GET /remote/", http.StripPrefix("/remote/", http.FileServer(http.FS(assets))))
+	browserMux.Handle("GET /remote/", http.StripPrefix("/remote/", newRemoteAssetHandler(assets)))
 	browserMux.HandleFunc("GET /remote", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/remote/", http.StatusTemporaryRedirect)
 	})
@@ -652,12 +662,15 @@ func (a *app) remoteBrowserSecurityHeaders(next http.Handler, policy remoteBrows
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.Header().Set("Cache-Control", "no-store")
 		}
-		if policy.Authorize == nil || policy.PathAllowed == nil || policy.Host == "" {
+		if policy.Authorize == nil || policy.PathAllowed == nil || (policy.Host == "" && policy.HostAllowed == nil) {
 			http.Error(w, "remote browser access unavailable", http.StatusServiceUnavailable)
 			return
 		}
 		authorization, err := policy.Authorize(r)
 		if err != nil {
+			if policy.Unauthorized != nil && policy.Unauthorized(w, r, err) {
+				return
+			}
 			status := http.StatusForbidden
 			if policy.AuthorizationStatus != nil {
 				status = policy.AuthorizationStatus(err)
@@ -693,7 +706,18 @@ func (a *app) remoteBrowserSecurityHeaders(next http.Handler, policy remoteBrows
 				http.Error(w, "remote control is disabled", http.StatusForbidden)
 				return
 			}
-			if !remoteMutationRequestIsSameOrigin(r, policy.Host) {
+			expectedHost := policy.Host
+			if policy.HostAllowed != nil {
+				expectedHost = canonicalRemoteHost(r.Host)
+				if !policy.HostAllowed(expectedHost) {
+					expectedHost = ""
+				}
+			}
+			expectedScheme := "https"
+			if policy.PlainHTTPOrigin && r.TLS == nil {
+				expectedScheme = "http"
+			}
+			if expectedHost == "" || !remoteMutationRequestIsSameOrigin(r, expectedHost, expectedScheme) {
 				http.Error(w, "exact HTTPS same-origin request required", http.StatusForbidden)
 				return
 			}
@@ -873,7 +897,7 @@ func classifyRemoteOperationResponse(status int) remoteOperationResponse {
 	}
 }
 
-func remoteMutationRequestIsSameOrigin(r *http.Request, expectedHost string) bool {
+func remoteMutationRequestIsSameOrigin(r *http.Request, expectedHost, expectedScheme string) bool {
 	if r == nil || canonicalRemoteHost(r.Host) != expectedHost {
 		return false
 	}
@@ -886,7 +910,7 @@ func remoteMutationRequestIsSameOrigin(r *http.Request, expectedHost string) boo
 		return false
 	}
 	origin, err := url.Parse(originValue)
-	return err == nil && strings.EqualFold(origin.Scheme, "https") &&
+	return err == nil && strings.EqualFold(origin.Scheme, expectedScheme) &&
 		canonicalRemoteHost(origin.Host) == expectedHost && origin.Path == "" &&
 		origin.RawQuery == "" && origin.Fragment == ""
 }

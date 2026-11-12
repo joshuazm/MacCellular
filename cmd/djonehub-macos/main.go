@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"embed"
 	"encoding/base64"
 	"encoding/hex"
@@ -37,7 +38,7 @@ import (
 	"go.bug.st/serial"
 )
 
-//go:embed web/* remote/*
+//go:embed web/* remote/* lan/*
 var webAssets embed.FS
 
 type receivedSMS struct {
@@ -225,6 +226,10 @@ type app struct {
 	// publicWebPush is nil unless an explicit public voice profile also loads a
 	// private local VAPID key and durable per-principal subscription store.
 	publicWebPush *publicWebPushManager
+	// lanWeb is an optional password-protected listener for browsers on the
+	// home network. It serves the SMS/status subset of the phone PWA only.
+	lanWeb     *lanWebStartupConfig
+	lanWebAuth *lanWebAuth
 	// Native clients use a separately enrolled P-256 device key. These fields
 	// are nil unless the authenticated remote gateway and its private device
 	// store both initialized successfully.
@@ -404,6 +409,7 @@ func main() {
 	var remoteIncomingAnswer bool
 	var remoteRescueHangup bool
 	var publicWebFlags publicWebFlagConfig
+	var lanWebFlags lanWebFlagConfig
 	var externalVoiceFlags externalVoiceFlagConfig
 	var publicEdgeFlags publicEdgeFlagConfig
 	var smsStorePath string
@@ -452,6 +458,13 @@ func main() {
 	flag.StringVar(&publicWebFlags.Push.PrivateKeyFile, "public-web-push-vapid-private-key-file", "", "absolute mode-0600 file containing one base64url P-256 VAPID private key")
 	flag.StringVar(&publicWebFlags.Push.Subject, "public-web-push-vapid-subject", "", "exact mailto: or public HTTPS VAPID contact")
 	flag.StringVar(&publicWebFlags.Push.SubscriptionsFile, "public-web-push-subscriptions-file", "", "absolute private JSON subscription store on this Mac")
+	flag.StringVar(&lanWebFlags.Listen, "lan-web-listen", "", "home-network listen address for the password-protected SMS PWA, for example 0.0.0.0:7579; blank keeps LAN web disabled")
+	flag.StringVar(&lanWebFlags.PasswordFile, "lan-web-password-file", "", "absolute mode-0600 file containing the single-line LAN web access password (at least 10 characters)")
+	flag.BoolVar(&lanWebFlags.Control, "lan-web-control", false, "allow LAN web sessions to send and refresh SMS")
+	flag.StringVar(&lanWebFlags.TLSCertFile, "lan-web-tls-cert", "", "absolute PEM certificate for serving LAN web over HTTPS (required for PWA install and notifications on phones)")
+	flag.StringVar(&lanWebFlags.TLSKeyFile, "lan-web-tls-key", "", "absolute PEM private key matching -lan-web-tls-cert")
+	flag.StringVar(&lanWebFlags.Hosts, "lan-web-hosts", "", "comma-separated extra hostnames allowed to address the LAN web listener (private IPs, *.local and single-label names are always allowed)")
+	flag.StringVar(&lanWebFlags.SessionsFile, "lan-web-sessions-file", "", "absolute private JSON file that keeps LAN web logins across restarts; defaults under Application Support")
 	flag.StringVar(&externalVoiceFlags.Provider, "voice-provider", "", "external voice provider; blank keeps external voice disabled")
 	flag.StringVar(&externalVoiceFlags.GatewayID, "voice-gateway-id", "", "stable configured ID for the external voice gateway")
 	flag.StringVar(&externalVoiceFlags.ARIURL, "asterisk-ari-url", "", "exact private Asterisk ARI base URL")
@@ -532,6 +545,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("public web remains disabled: %v", err)
 	}
+	lanWebStartup, err := parseLANWebStartupConfig(lanWebFlags)
+	if err != nil {
+		log.Fatalf("LAN web remains disabled: %v", err)
+	}
 	if err := validateModemRuntimeMode(smsOnlyRuntime, phoneRelayRuntime, publicWebStartup); err != nil {
 		log.Fatal(err)
 	}
@@ -564,6 +581,9 @@ func main() {
 	configurePublicWeb := func(instance *app) {
 		if err := instance.configurePublicWebAccess(publicWebStartup); err != nil {
 			log.Fatalf("public web remains disabled: %v", err)
+		}
+		if err := instance.configureLANWeb(lanWebStartup); err != nil {
+			log.Fatalf("LAN web remains disabled: %v", err)
 		}
 	}
 
@@ -804,6 +824,8 @@ func serve(instance *app, listen string) {
 		Addr:              listen,
 		Handler:           instance.routes(),
 		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    64 << 10,
 	}
 	mediaControl, err := instance.startRemoteMediaControlServer(ctx)
 	if policyErr := validateRemoteMediaControlStartup(instance, mediaControl, err); policyErr != nil {
@@ -846,6 +868,7 @@ func serve(instance *app, listen string) {
 			Addr:              instance.remoteListen,
 			Handler:           instance.remoteRoutes(),
 			ReadHeaderTimeout: 5 * time.Second,
+			IdleTimeout:       120 * time.Second,
 			MaxHeaderBytes:    32 << 10,
 		}
 		remoteListener, err = net.Listen("tcp", instance.remoteListen)
@@ -863,6 +886,7 @@ func serve(instance *app, listen string) {
 			Addr:              instance.publicWeb.Listen,
 			Handler:           http.NotFoundHandler(),
 			ReadHeaderTimeout: 5 * time.Second,
+			IdleTimeout:       120 * time.Second,
 			MaxHeaderBytes:    32 << 10,
 		}
 		publicWebListener, err = net.Listen("tcp", instance.publicWeb.Listen)
@@ -875,6 +899,36 @@ func serve(instance *app, listen string) {
 			return
 		}
 		log.Printf("Public phone PWA is listening on dedicated loopback %s for Cloudflare Tunnel", instance.publicWeb.Listen)
+	}
+	var lanWebServer *http.Server
+	var lanWebListener net.Listener
+	if instance.lanWeb != nil {
+		lanWebServer = &http.Server{
+			Addr:              instance.lanWeb.Listen,
+			Handler:           instance.lanWebRoutes(),
+			ReadHeaderTimeout: 5 * time.Second,
+			IdleTimeout:       120 * time.Second,
+			MaxHeaderBytes:    32 << 10,
+		}
+		if instance.lanWeb.TLS() {
+			lanWebServer.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		}
+		lanWebListener, err = net.Listen("tcp", instance.lanWeb.Listen)
+		if err != nil {
+			if publicWebListener != nil {
+				_ = publicWebListener.Close()
+			}
+			if remoteListener != nil {
+				_ = remoteListener.Close()
+			}
+			_ = listener.Close()
+			log.Printf("LAN web listen failed closed: %v", err)
+			return
+		}
+		log.Printf("LAN web PWA is listening on %s (tls=%t, control=%t)", instance.lanWeb.Listen, instance.lanWeb.TLS(), instance.lanWeb.Control)
+		for _, candidate := range lanWebAdvertisedURLs(instance.lanWeb.Listen, instance.lanWeb.TLS()) {
+			log.Printf("  LAN web: %s", candidate)
+		}
 	}
 	// Bind every public process endpoint before subscribing to the shared
 	// Asterisk Stasis application. A duplicate local instance must fail before
@@ -903,7 +957,7 @@ func serve(instance *app, listen string) {
 		name string
 		err  error
 	}
-	serveErr := make(chan serverResult, 3)
+	serveErr := make(chan serverResult, 4)
 	go func() {
 		serveErr <- serverResult{name: "local", err: server.Serve(listener)}
 	}()
@@ -915,6 +969,15 @@ func serve(instance *app, listen string) {
 	if publicWebServer != nil {
 		go func() {
 			serveErr <- serverResult{name: "public-web", err: publicWebServer.Serve(publicWebListener)}
+		}()
+	}
+	if lanWebServer != nil {
+		go func() {
+			if instance.lanWeb.TLS() {
+				serveErr <- serverResult{name: "lan-web", err: lanWebServer.ServeTLS(lanWebListener, instance.lanWeb.TLSCertFile, instance.lanWeb.TLSKeyFile)}
+				return
+			}
+			serveErr <- serverResult{name: "lan-web", err: lanWebServer.Serve(lanWebListener)}
 		}()
 	}
 
@@ -943,6 +1006,11 @@ func serve(instance *app, listen string) {
 		if publicWebServer != nil {
 			if err := publicWebServer.Shutdown(shutdownCtx); err != nil {
 				log.Printf("public web HTTP server shutdown: %v", err)
+			}
+		}
+		if lanWebServer != nil {
+			if err := lanWebServer.Shutdown(shutdownCtx); err != nil {
+				log.Printf("LAN web HTTP server shutdown: %v", err)
 			}
 		}
 	}

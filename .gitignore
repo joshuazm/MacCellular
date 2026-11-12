@@ -52,6 +52,9 @@ MaVo*.dmg
 .env.*
 !.env.example
 *.pem
+# Public eUICC root CA bundles are build inputs (go:embed), not secrets.
+!third_party/euicc-go/http/rootci/bundle.pem
+!third_party/euicc-go/http/rootci/bundle-tests.pem
 *.p12
 *.mobileprovision
 *.key

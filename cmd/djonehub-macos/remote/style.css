@@ -98,6 +98,7 @@ main { width: min(700px, 100%); margin: 0 auto; padding: 15px 13px calc(102px + 
 .gateway-card summary::-webkit-details-marker { display: none; }
 .gateway-card summary small { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .gateway-details-body { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 15px; border-top: 1px solid var(--line); }
+.gateway-actions { display: flex; gap: 8px; }
 .identity { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 
 .page-heading { padding: 5px 3px 1px; }
